@@ -905,6 +905,7 @@ static void common_chat_parse_qwen3_coder_xml(common_chat_msg_parser & builder) 
         form.tool_end    = "</function>";
         form.scope_end   = "</tool_call>";
         form.trim_raw_argval = true;
+        form.allow_toolcall_in_think = true;
         return form;
     })();
     builder.consume_reasoning_with_xml_tool_calls(form);
