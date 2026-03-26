@@ -550,6 +550,22 @@ void server_models::load(const std::string & name) {
                     // timeout, force kill
                     SRV_WRN("force-killing model instance name=%s after %d seconds timeout\n", name.c_str(), stop_timeout);
                     subprocess_terminate(child_proc.get());
+                    // close the stdout pipe fd to unblock log_thread's fgets(),
+                    // preventing a deadlock where log_thread never exits and the
+                    // zombie child is never reaped.
+                    // we close the raw fd rather than calling fclose() because
+                    // fgets() holds the FILE's internal lock on glibc, and fclose()
+                    // would block trying to acquire the same lock.
+                    // (ref: https://github.com/ggml-org/llama.cpp/issues/18912)
+                    if (child_proc->stdout_file) {
+                        int fd = fileno(child_proc->stdout_file);
+                        if (fd >= 0) {
+                            close(fd);
+                        }
+                        // null out to prevent subprocess_destroy from double-closing
+                        child_proc->stdout_file = SUBPROCESS_NULL;
+                        child_proc->stderr_file = SUBPROCESS_NULL; // combined stdout/stderr
+                    }
                     return;
                 }
                 this->cv_stop.wait_for(lk, std::chrono::seconds(1));
